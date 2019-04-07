@@ -1,0 +1,96 @@
+---
+- hosts: 13.233.127.156 
+  become: yes
+  roles:
+     - tomcat
+  tasks:
+    - name: installing java-1.8.0 and git packages
+      yum:
+        name: java-1.8.0-openjdk
+        state: present
+    - name: adding bin/java executable to path variable
+      lineinfile:
+        path: /home/ansadm/.bash_profile
+        line: 'JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.201.b09-0.amzn2.x86_64/jre'
+        insertbefore: EOF
+        owner: ansadm
+        group: ansadm
+        mode: 0644
+    - name: downloading maven 3.6.0
+      get_url:
+        url: http://mirrors.estointernet.in/apache/maven/maven-3/3.6.0/binaries/apache-maven-3.6.0-bin.tar.gz
+        dest: /opt/
+        mode: 0777
+    - name: Unarchive a maven tar file
+      unarchive:
+        src: /opt/apache-maven-3.6.0-bin.tar.gz
+        dest: /opt/
+        remote_src: yes
+    - name: adding maven to path variable
+      lineinfile:
+        path: /home/ansadm/.bash_profile
+        line: 'M2_HOME=/opt/apache-maven-3.6.0'
+        insertbefore: '^JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.201.b09-0.amzn2.x86_64/jre'
+        owner: ansadm
+        group: ansadm
+        mode: 0644
+    - name: adding maven bin to path variable
+      lineinfile:
+        path: /home/ansadm/.bash_profile
+        line: 'M2=$M2_HOME/bin'
+        insertbefore: '^M2_HOME=/opt/apache-maven-3.6.0'
+        owner: ansadm
+        group: ansadm
+        mode: 0644
+    - name: replace PATH variable
+      lineinfile:
+        path: /home/ansadm/.bash_profile
+        line: 'PATH=$PATH:$HOME/.local/bin:$M2_HOME:$M2:$JAVA_HOME:$HOME/bin'
+        insertbefore: EOF
+        owner: ansadm
+        group: ansadm
+        mode: 0644
+    - name: installing git package
+      yum:
+        name: git
+        state: present      
+    - name: installing git package
+      yum:
+        name: maven
+        state: present      
+#    - name: cloning shopizer application
+#      git:
+#        repo: 'https://github.com/shopizer-ecommerce/shopizer.git'
+#        dest: /pract
+#        clone: yes
+#        update: yes
+    - name: change directory to shopizer
+      command: chown ansadm:ansadm /pract
+    - name: install the project
+      shell: "mvn clean install"
+      args:
+        chdir: /pract/
+      register: mvn_result
+    - name: copy war file to webapps folder
+      copy:
+        src: /pract/sm-shop/target/ROOT.war
+        dest: /opt/apache-tomcat-8.5.39/webapps
+        owner: ansadm
+        group: ansadm
+        mode: 0777
+        remote_src: yes
+    - name: writing firewall rule
+      command: firewall-cmd --zone=public --add-port=8080/tcp
+    - name: reload firewall
+      command: firewall-cmd --reload
+    - name: starting tomcat service
+      shell: "./startup.sh"
+      args:
+        chdir: /opt/apache-tomcat-8.5.39/bin
+#    - name: change directory to sm-shop
+#      command: cd /pract/sm-shop
+#    - name: creating package through maven
+#      shell: "mvn spring-boot:run"
+#      args:
+#        chdir: /pract/sm-shop
+#      register: mvn_result
